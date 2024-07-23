@@ -20,6 +20,7 @@
  * @package   format_vsf
  * @category  backup
  * @copyright &copy; 2022-onwards G J Barnard in respect to modifications of standard topics format.
+ * @copyright &copy; 2024-onwards RvD in respect to modifications for custom icons.
  * @copyright 2017 Marina Glancy
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -32,6 +33,7 @@
  * @package   format_vsf
  * @category  backup
  * @copyright &copy; 2022-onwards G J Barnard in respect to modifications of standard topics format.
+ * @copyright &copy; 2024-onwards RvD in respect to modifications for custom icons.
  * @copyright 2017 Marina Glancy
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -66,13 +68,28 @@ class restore_format_vsf_plugin extends restore_format_plugin {
         if (($target == backup::TARGET_CURRENT_ADDING || $target == backup::TARGET_EXISTING_ADDING) &&
                 $this->need_restore_numsections()) {
             $maxsection = $DB->get_field_sql(
-                'SELECT max(section) FROM {course_sections} WHERE course = ?',
-                [$this->step->get_task()->get_courseid()]);
-            $this->originalnumsections = (int)$maxsection;
+                    'SELECT max(section) FROM {course_sections} WHERE course = ?',
+                    [$this->step->get_task()->get_courseid()]);
+            $this->originalnumsections = (int) $maxsection;
+        }
+
+        $paths = [];
+        // Since this method is executed before the restore we can do some pre-checks here.
+        // In case of merging backup into existing course find the current number of sections.
+        // We will ONLY perform the specifics if we're NOT importing etc etc.
+        $allowrestore = [backup::TARGET_NEW_COURSE];
+        if (in_array($target, $allowrestore)) {
+            // We'll restore :).
+            $elename = 'courseicon'; // This defines the postfix of 'process_*' below.
+            $elepath = $this->get_pathfor('/courseicons/courseicon');
+            $paths[] = new restore_path_element($elename, $elepath);
         }
 
         // Dummy path element is needed in order for after_restore_course() to be called.
-        return [new restore_path_element('dummy_course', $this->get_pathfor('/dummycourse'))];
+        return array_merge(
+                [new restore_path_element('dummy_course', $this->get_pathfor('/dummycourse'))],
+                $paths
+        );
     }
 
     /**
@@ -92,8 +109,16 @@ class restore_format_vsf_plugin extends restore_format_plugin {
      * @return void
      */
     public function after_restore_course() {
-        global $DB;
+        $this->vsf_after_restore_course_numsections();
+        $this->vsf_after_restore_course_modicons();
+    }
 
+    /**
+     * Restore numsections
+     *
+     * @return void
+     */
+    protected function vsf_after_restore_course_numsections() {
         if (!$this->need_restore_numsections()) {
             // Backup file was made in Moodle 4.0 or later, we don't need to process 'numsecitons'.
             return;
@@ -106,7 +131,7 @@ class restore_format_vsf_plugin extends restore_format_plugin {
             return;
         }
 
-        $numsections = (int)$data['tags']['numsections'];
+        $numsections = (int) $data['tags']['numsections'];
         foreach ($backupinfo->sections as $key => $section) {
             // For each section from the backup file check if it was restored and if was "orphaned" in the original
             // course and mark it as hidden. This will leave all activities in it visible and available just as it was
@@ -114,12 +139,92 @@ class restore_format_vsf_plugin extends restore_format_plugin {
             // Exception is when we restore with merging and the course already had a section with this section number,
             // in this case we don't modify the visibility.
             if ($this->step->get_task()->get_setting_value($key . '_included')) {
-                $sectionnum = (int)$section->title;
+                $sectionnum = (int) $section->title;
                 if ($sectionnum > $numsections && $sectionnum > $this->originalnumsections) {
                     $DB->execute("UPDATE {course_sections} SET visible = 0 WHERE course = ? AND section = ?",
-                        [$this->step->get_task()->get_courseid(), $sectionnum]);
+                            [$this->step->get_task()->get_courseid(), $sectionnum]);
                 }
             }
         }
     }
+
+    /**
+     * Creates a dummy path element in order to be able to execute code after restore
+     *
+     * @return restore_path_element[]
+     */
+    public function define_module_plugin_structure() {
+        // Since this method is executed before the restore we can do some pre-checks here.
+        // In case of merging backup into existing course find the current number of sections.
+        $target = $this->step->get_task()->get_target();
+
+        $paths = [];
+        // We will ONLY perform the specifics if we're NOT importing etc etc.
+        $allowrestore = [backup::TARGET_NEW_COURSE, backup::TARGET_CURRENT_ADDING, backup::TARGET_EXISTING_ADDING];
+        if (in_array($target, $allowrestore)) {
+            // We'll restore :).
+            $elename = 'modicon'; // This defines the postfix of 'process_*' below.
+            $elepath = $this->get_pathfor('/modicon');
+            $paths[] = new restore_path_element($elename, $elepath);
+        }
+
+        return $paths;
+    }
+
+    /**
+     * Process course level icon customisations.
+     */
+    public function process_courseicon($data) {
+        if (!is_object($data)) {
+            $data = (object) $data;
+        }
+        $modname = $data->name;
+        $filearea = "modicon_{$modname}";
+        $itemid = 0;
+        $mappingitemname = null;
+        $filesctxid = $this->task->get_old_contextid();
+        $this->add_related_files('format_vsf', $filearea, $mappingitemname, $filesctxid, $itemid);
+    }
+
+    /**
+     * Process module level icon customisations.
+     */
+    public function process_modicon($data) {
+        if (!is_object($data)) {
+            $data = (object) $data;
+        }
+        // Data, as stated in the backup class, holds the itemid, module name and original context.
+        // The reason for the original context is because at this stage, we DO NOT have
+        // an original context.
+        // It is due to $this->task->get_old_contextid() returning 0, consequently failing $this->add_related_files().
+        // The only way to get this right now, is to hook into "after_restore_course()".
+        // We can achieve this by filling a STATIC property (we CANNOT use an instance property, it WILL fail) with the data object.
+        // Then, in "after_restore_course()", we can simply call "add_related_files()" with the correct data.
+
+        // Add data object to static property for use later (see below).
+        static::$modicons[] = $data;
+    }
+
+    /**
+     * Holds data objects that refer to custom module instance icons.
+     *
+     * @var array
+     */
+    protected static $modicons = [];
+
+    /**
+     * Restore the modicons that were added by this/in format.
+     */
+    protected function vsf_after_restore_course_modicons() {
+        // For all the data objects that were added in "process_modicon()",
+        // try to add the related files.
+        foreach (static::$modicons as $data) {
+            $filearea = "modicon";
+            $itemid = 0;
+            $mappingitemname = null;
+            $filesctxid = $data->oldctxid;
+            $this->add_related_files('format_vsf', $filearea, $mappingitemname, $filesctxid, $itemid);
+        }
+    }
+
 }

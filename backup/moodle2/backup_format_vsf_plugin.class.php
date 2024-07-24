@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Specialised backup for Progress Section course format.
  *
@@ -37,10 +38,6 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class backup_format_vsf_plugin extends backup_format_plugin {
-
-    public function __construct($plugintype, $pluginname, $optigroup, $step) {
-        parent::__construct($plugintype, $pluginname, $optigroup, $step);
-    }
 
     /**
      * Define course plugin structure for format_vsf
@@ -73,7 +70,7 @@ class backup_format_vsf_plugin extends backup_format_plugin {
         $pluginwrapper->add_child($courseiconwrapper);
         $courseiconwrapper->add_child($courseicon);
 
-        // This seems to work ere, we actually have the old course context available.
+        // Task context is course context.
         $ctxid = $this->task->get_contextid();
         $modules = $DB->get_fieldset_sql($sql, $params);
         foreach ($modules as $module) {
@@ -112,7 +109,7 @@ class backup_format_vsf_plugin extends backup_format_plugin {
 
         // Create one standard named plugin element (the visible container) using the base recommended name.
         $pluginwrapper = new backup_nested_element($this->get_recommended_name());
-        // Connect to container
+        // Connect to container.
         $plugin->add_child($pluginwrapper);
 
         // Create an element for the modicon. Since half the information I expect is NOT present in restore,
@@ -121,7 +118,11 @@ class backup_format_vsf_plugin extends backup_format_plugin {
         // GAWD, I hate backup/restore. Unclear, messy, lacking. Just... plain... wrong.
         // ELOY, YOUR IMPLEMENTATION SUCKS!
         $customicon = new backup_nested_element('modicon', [], ['itemid', 'modname', 'oldctxid']);
-        $customicon->set_source_array([['itemid' => 0, 'modname' => $this->task->get_modulename(), 'oldctxid' => $modulecontextid]]);
+        $customicon->set_source_array([[
+            'itemid' => 0,
+            'modname' => $this->task->get_modulename(),
+            'oldctxid' => $modulecontextid,
+        ]]);
         // Connect to conainer.
         $pluginwrapper->add_child($customicon);
 

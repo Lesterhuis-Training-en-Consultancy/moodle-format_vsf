@@ -39,6 +39,13 @@
  */
 class restore_format_vsf_plugin extends restore_format_plugin {
 
+    /**
+     * Holds data objects that refer to custom module instance icons.
+     *
+     * @var array
+     */
+    protected static $modicons = [];
+
     /** @var int */
     protected $originalnumsections = 0;
 
@@ -119,6 +126,7 @@ class restore_format_vsf_plugin extends restore_format_plugin {
      * @return void
      */
     protected function vsf_after_restore_course_numsections() {
+        global $DB;
         if (!$this->need_restore_numsections()) {
             // Backup file was made in Moodle 4.0 or later, we don't need to process 'numsecitons'.
             return;
@@ -142,7 +150,7 @@ class restore_format_vsf_plugin extends restore_format_plugin {
                 $sectionnum = (int) $section->title;
                 if ($sectionnum > $numsections && $sectionnum > $this->originalnumsections) {
                     $DB->execute("UPDATE {course_sections} SET visible = 0 WHERE course = ? AND section = ?",
-                            [$this->step->get_task()->get_courseid(), $sectionnum]);
+                        [$this->step->get_task()->get_courseid(), $sectionnum]);
                 }
             }
         }
@@ -204,13 +212,6 @@ class restore_format_vsf_plugin extends restore_format_plugin {
         // Add data object to static property for use later (see below).
         static::$modicons[] = $data;
     }
-
-    /**
-     * Holds data objects that refer to custom module instance icons.
-     *
-     * @var array
-     */
-    protected static $modicons = [];
 
     /**
      * Restore the modicons that were added by this/in format.

@@ -1,6 +1,11 @@
 Version Information
 ===================
 
+Version 4.5.0.3
+-----------------------------
+1. Section 0 (General) is now automatically hidden when it has no summary content and no visible modules.
+   Based on the approach used by format_topcoll (Collapsed Topics). See LS-3490.
+
 Version 4.5.0.2
 -----------------------------
 1. Sub-section support.

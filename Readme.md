@@ -40,6 +40,8 @@ Notes
    section (section 0), as to prevent accidental deletion of the 'news' forum upon which the format relies.  If it is
    deleted, then a page refresh will recreate the forum but all previous posts will be lost.
 2. Any title and summary that has been previously set for the general section will not be shown.
+3. Section 0 (General) is automatically hidden when it has no summary content and no visible modules.
+   This is consistent with the approach used by format_topcoll (Collapsed Topics).
 
 Additional classes
 Section name = 'vsf-sectionname'.

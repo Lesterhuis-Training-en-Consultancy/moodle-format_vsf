@@ -216,6 +216,38 @@ class format_vsf extends core_courseformat\base {
     }
 
     /**
+     * Determines whether a section is visible.
+     *
+     * Section 0 is hidden when it has no summary content and no visible modules,
+     * consistent with the approach used by format_topcoll.
+     *
+     * @param \section_info $section The section to check.
+     * @return bool True if the section should be displayed.
+     */
+    public function is_section_visible(\section_info $section): bool {
+        $shown = parent::is_section_visible($section);
+        if ($shown && $section->sectionnum == 0) {
+            // Show section 0 only if summary has content (text or images).
+            if (empty(strip_tags($section->summary, ['img']))) {
+                // No summary — check if there are visible modules.
+                $modshown = false;
+                $modinfo = get_fast_modinfo($this->course);
+                if (!empty($modinfo->sections[$section->section])) {
+                    foreach ($modinfo->sections[$section->section] as $modnumber) {
+                        $mod = $modinfo->cms[$modnumber];
+                        if ($mod->is_visible_on_course_page()) {
+                            $modshown = true;
+                            break;
+                        }
+                    }
+                }
+                $shown = $modshown;
+            }
+        }
+        return $shown;
+    }
+
+    /**
      * Custom action after section has been moved in AJAX mode
      *
      * Used in course/rest.php
